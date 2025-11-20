@@ -2,100 +2,190 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>카카오 지도 다각형 영역 표시 및 이벤트</title>
+    <title>카카오 지도 다각형 버튼 연동</title>
     
-    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=0da54378e842829a12d7cb6a4c53a524&libraries=services"></script>
+    <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=0da54378e842829a12d7cb6a4c53a524&libraries=services"></script>
     
     <style>
-        #map {
-            width: 100%;
-            height: 600px;
+        body { margin: 0; padding: 0; }
+        #wrapper { width: 100%; display: flex; height: 600px; }
+        #building-list { 
+            width: 250px; 
+            height: 600px; 
+            overflow-y: scroll; 
+            padding: 10px;
+            box-sizing: border-box;
+            border-right: 1px solid #ccc;
+        }
+        #building-list button {
+            width: 100%; 
+            margin-bottom: 5px; 
+            padding: 10px; 
+            cursor: pointer; 
+            background-color: #f0f0f0; 
+            border: 1px solid #ccc;
+            text-align: left;
+            transition: background-color 0.1s;
+            font-size: 14px;
+            border-radius: 4px;
+        }
+        #building-list button:hover {
+            background-color: #e0e0e0;
+        }
+        #map { 
+            flex-grow: 1; 
+            height: 600px; 
         }
     </style>
 </head>
 <body>
-    <div id="map"></div>
+    <div id="wrapper">
+        <div id="building-list">
+            <h2>건물 목록</h2>
+            </div>
+        <div id="map"></div>
+    </div>
 
     <script>
-        // 1. 지도 생성
+        // 1. 지도 초기 설정
         let mapContainer = document.getElementById('map');
         let mapOption = {
-            // 중심 좌표: 대략적인 대학교 중앙 위치 (동의과학대학교 근처)
             center: new kakao.maps.LatLng(35.1450, 129.0095), 
-            level: 3 // 확대 레벨
+            level: 3 
         };
         let map = new kakao.maps.Map(mapContainer, mapOption);
         
-        // 인포윈도우 객체를 미리 하나 생성해 재활용합니다.
+        // 지도 관련 객체
         let infowindow = new kakao.maps.InfoWindow({zIndex: 1});
+        let polygons = {}; // ID별 Polygon 객체를 저장할 객체
+        const DEFAULT_FILL_COLOR = '#6B8EE6';
+        const HIGHLIGHT_FILL_COLOR = '#FF5555';
+        const DEFAULT_FILL_OPACITY = 0.4;
+        const HIGHLIGHT_FILL_OPACITY = 0.6;
 
-        // 2. JSON 데이터 불러오기
+
+        // 2. JSON 데이터 불러오기 (GitHub Pages 등 웹 서버 환경에서 작동)
         fetch('area_polygons.json') 
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('JSON 파일 로드 오류: 파일 경로를 확인하세요.');
+                    throw new Error('JSON 파일 로드 오류: 상태 코드 ' + response.status + 
+                                    '. 로컬 파일 시스템에서는 CORS 문제로 실행되지 않습니다. 웹 서버에서 실행하세요.');
                 }
                 return response.json();
             })
             .then(data => {
                 drawPolygons(data);
+                createBuildingButtons(data); // 데이터 로드 후 버튼 생성
             })
-            .catch(error => console.error('Error loading JSON:', error));
+            .catch(error => {
+                console.error('Error loading JSON:', error);
+                alert('JSON 파일을 불러오지 못했습니다. 웹 서버에서 실행 중인지 확인하세요.');
+            });
 
-        // 3. 다각형(Polygon) 생성 및 이벤트 등록 함수
+        // 3. 다각형(Polygon) 생성 및 지도 이벤트 등록
         function drawPolygons(areaData) {
             areaData.forEach(area => {
-                // 좌표를 kakao.maps.LatLng 객체 배열로 변환
                 let polygonPath = area.paths.map(coord =>
                     new kakao.maps.LatLng(coord.lat, coord.lng)
                 );
 
-                // 다각형 객체 생성 (기본 스타일)
                 let polygon = new kakao.maps.Polygon({
                     path: polygonPath,
                     strokeWeight: 3,
                     strokeColor: '#3978C1',
                     strokeOpacity: 0.8,
-                    fillColor: '#6B8EE6',
-                    fillOpacity: 0.4 // 초기 투명도
+                    fillColor: DEFAULT_FILL_COLOR,
+                    fillOpacity: DEFAULT_FILL_OPACITY
                 });
 
-                // 다각형을 지도에 표시
                 polygon.setMap(map);
+                polygons[area.id] = polygon; // ID로 다각형 객체 저장
 
-                // =======================================================
-                // 4. 이벤트 등록
-                // =======================================================
+                // 마우스 오버/아웃 이벤트 (다각형에 직접 이벤트 등록)
+                kakao.maps.event.addListener(polygon, 'mouseover', function() {
+                    highlightPolygon(polygon, area.name);
+                });
+                
+                kakao.maps.event.addListener(polygon, 'mouseout', function() {
+                    resetPolygon(polygon);
+                    infowindow.close();
+                });
 
-                // A. 클릭 이벤트: 인포윈도우 표시
+                // 클릭 이벤트 (다각형 클릭 시에도 인포윈도우 표시 및 강조)
                 kakao.maps.event.addListener(polygon, 'click', function(mouseEvent) {
-                    let content = `<div style="padding:5px;font-size:12px;">**${area.name}**</div>`;
+                    highlightPolygon(polygon, area.name);
                     
-                    // 마우스 클릭 위치에 인포윈도우 표시
+                    let content = `<div style="padding:5px;font-weight:bold;">${area.name}</div>`;
                     infowindow.setContent(content);
                     infowindow.setPosition(mouseEvent.latLng);
                     infowindow.open(map);
                 });
-                
-                // B. 마우스 오버 이벤트: 색상 변경
-                kakao.maps.event.addListener(polygon, 'mouseover', function() {
-                    polygon.setOptions({
-                        fillColor: '#FF5555', // 빨간색 계열로 변경
-                        fillOpacity: 0.6
-                    });
-                });
-                
-                // C. 마우스 아웃 이벤트: 원래 색상으로 복귀
-                kakao.maps.event.addListener(polygon, 'mouseout', function() {
-                    polygon.setOptions({
-                        fillColor: '#6B8EE6', // 원래 색상으로 복귀
-                        fillOpacity: 0.4
-                    });
-                    // 마우스가 영역을 벗어날 때 인포윈도우 닫기
-                    infowindow.close();
-                });
             });
         }
+        
+        // 4. 버튼 생성 및 클릭 이벤트 등록
+        function createBuildingButtons(areaData) {
+            const listContainer = document.getElementById('building-list');
+            
+            areaData.forEach(area => {
+                const button = document.createElement('button');
+                button.textContent = `ID ${area.id}: ${area.name}`;
+                button.setAttribute('data-id', area.id);
+                
+                button.onclick = function() {
+                    handleButtonClick(area);
+                };
+                
+                listContainer.appendChild(button);
+            });
+        }
+
+        // 5. 버튼 클릭 시 동작 (가장 중요한 부분)
+        function handleButtonClick(area) {
+            const polygon = polygons[area.id];
+            
+            if (polygon) {
+                // 1. 강조 표시
+                highlightPolygon(polygon, area.name);
+
+                // 2. 지도 이동 (다각형의 중심 좌표를 대략 계산)
+                let bounds = new kakao.maps.LatLngBounds();
+                area.paths.forEach(coord => {
+                    bounds.extend(new kakao.maps.LatLng(coord.lat, coord.lng));
+                });
+                let center = bounds.getCenter();
+                map.panTo(center); // 지도를 해당 영역의 중심으로 부드럽게 이동
+
+                // 3. 인포윈도우 표시 (중심 좌표에 표시)
+                let content = `<div style="padding:5px;font-weight:bold;">${area.name}</div>`;
+                infowindow.setContent(content);
+                infowindow.setPosition(center);
+                infowindow.open(map);
+            }
+        }
+        
+        // 6. 다각형 강조 및 리셋 함수
+        function highlightPolygon(targetPolygon, name) {
+            // 이전에 강조된 다각형이 있다면 원래대로 복원
+            for(let id in polygons) {
+                if (polygons[id] !== targetPolygon) {
+                    resetPolygon(polygons[id]);
+                }
+            }
+            // 현재 다각형 강조
+            targetPolygon.setOptions({
+                fillColor: HIGHLIGHT_FILL_COLOR, 
+                fillOpacity: HIGHLIGHT_FILL_OPACITY
+            });
+        }
+        
+        function resetPolygon(polygon) {
+            polygon.setOptions({
+                fillColor: DEFAULT_FILL_COLOR, 
+                fillOpacity: DEFAULT_FILL_OPACITY
+            });
+        }
+        
     </script>
 </body>
 </html>
