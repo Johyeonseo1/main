@@ -2,86 +2,100 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>다각형에 이벤트 등록하기1</title>
+    <title>카카오 지도 다각형 영역 표시 및 이벤트</title>
     
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=0da54378e842829a12d7cb6a4c53a524&libraries=services"></script>
+    
+    <style>
+        #map {
+            width: 100%;
+            height: 600px;
+        }
+    </style>
 </head>
 <body>
-<div id="map" style="width:100%;height:350px;"></div>
-<p id="result"></p>
+    <div id="map"></div>
 
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=0da54378e842829a12d7cb6a4c53a524&libraries=services"></script>
-<script>
-var mapContainer = document.getElementById('map'), // 지도를 표시할 div 
-    mapOption = { 
-        center: new kakao.maps.LatLng(35.1450992903445, 129.01013434989628), // 지도의 중심좌표
-        level: 2 // 지도의 확대 레벨  
-    };
+    <script>
+        // 1. 지도 생성
+        let mapContainer = document.getElementById('map');
+        let mapOption = {
+            // 중심 좌표: 대략적인 대학교 중앙 위치 (동의과학대학교 근처)
+            center: new kakao.maps.LatLng(35.1450, 129.0095), 
+            level: 3 // 확대 레벨
+        };
+        let map = new kakao.maps.Map(mapContainer, mapOption);
+        
+        // 인포윈도우 객체를 미리 하나 생성해 재활용합니다.
+        let infowindow = new kakao.maps.InfoWindow({zIndex: 1});
 
-var map = new kakao.maps.Map(mapContainer, mapOption); // 지도를 생성합니다
+        // 2. JSON 데이터 불러오기
+        fetch('area_polygons.json') 
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('JSON 파일 로드 오류: 파일 경로를 확인하세요.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                drawPolygons(data);
+            })
+            .catch(error => console.error('Error loading JSON:', error));
 
-// 다각형을 구성하는 좌표 배열입니다. 이 좌표들을 이어서 다각형을 표시합니다 
-var place1 = [
-        new kakao.maps.LatLng(35.144354829179136, 129.01005843867847),
-        new kakao.maps.LatLng(35.144348685111765, 129.01070011041583), //기준점
-        new kakao.maps.LatLng(35.14383306506006, 129.01068193864228), //기준점 아래쪽
-        new kakao.maps.LatLng(35.143839845839594, 129.01000188719132),
-];
+        // 3. 다각형(Polygon) 생성 및 이벤트 등록 함수
+        function drawPolygons(areaData) {
+            areaData.forEach(area => {
+                // 좌표를 kakao.maps.LatLng 객체 배열로 변환
+                let polygonPath = area.paths.map(coord =>
+                    new kakao.maps.LatLng(coord.lat, coord.lng)
+                );
 
-var place2 = [
-        new kakao.maps.LatLng(35.14436834974626, 129.01182241289297),
-        new kakao.maps.LatLng(35.144409449821595,129.01314547046294),
-        new kakao.maps.LatLng(35.143940211533035, 129.01318328210286),
-        new kakao.maps.LatLng(35.14390866610831, 129.01182755355137),
-];
+                // 다각형 객체 생성 (기본 스타일)
+                let polygon = new kakao.maps.Polygon({
+                    path: polygonPath,
+                    strokeWeight: 3,
+                    strokeColor: '#3978C1',
+                    strokeOpacity: 0.8,
+                    fillColor: '#6B8EE6',
+                    fillOpacity: 0.4 // 초기 투명도
+                });
 
-// 지도에 표시할 다각형을 생성합니다
-var polygon = new kakao.maps.Polygon({
-    path:place1, // 그려질 다각형의 좌표 배열입니다
-    strokeWeight: 3, // 선의 두께입니다
-    strokeColor: '#39DE2A', // 선의 색깔입니다
-    strokeOpacity: 0.8, // 선의 불투명도 입니다 1에서 0 사이의 값이며 0에 가까울수록 투명합니다
-    strokeStyle: 'solid', // 선의 스타일입니다
-    fillColor: '#A2FF99', // 채우기 색깔입니다
-    fillOpacity: 0.7 // 채우기 불투명도 입니다
-});
+                // 다각형을 지도에 표시
+                polygon.setMap(map);
 
-// 지도에 다각형을 표시합니다
-polygon.setMap(map);
+                // =======================================================
+                // 4. 이벤트 등록
+                // =======================================================
 
-// 다각형에 마우스오버 이벤트가 발생했을 때 변경할 채우기 옵션입니다
-var mouseoverOption = { 
-    fillColor: '#EFFFED', // 채우기 색깔입니다
-    fillOpacity: 0.8 // 채우기 불투명도 입니다        
-};
-
-// 다각형에 마우스아웃 이벤트가 발생했을 때 변경할 채우기 옵션입니다
-var mouseoutOption = {
-    fillColor: '#A2FF99', // 채우기 색깔입니다 
-    fillOpacity: 0.7 // 채우기 불투명도 입니다        
-};
-
-// 다각형에 마우스오버 이벤트를 등록합니다
-kakao.maps.event.addListener(polygon, 'mouseover', function() { 
-
-    // 다각형의 채우기 옵션을 변경합니다
-    polygon.setOptions(mouseoverOption);
-
-});   
-
-kakao.maps.event.addListener(polygon, 'mouseout', function() { 
-
-    // 다각형의 채우기 옵션을 변경합니다
-    polygon.setOptions(mouseoutOption);
-    
-}); 
-
-// 다각형에 마우스다운 이벤트를 등록합니다
-var downCount = 0;
-kakao.maps.event.addListener(polygon, 'mousedown', function() { 
-    console.log(event);
-    var resultDiv = document.getElementById('result');
-    resultDiv.innerHTML = '다각형에 mousedown 이벤트가 발생했습니다!' + (++downCount);
-}); 
-</script>
+                // A. 클릭 이벤트: 인포윈도우 표시
+                kakao.maps.event.addListener(polygon, 'click', function(mouseEvent) {
+                    let content = `<div style="padding:5px;font-size:12px;">**${area.name}**</div>`;
+                    
+                    // 마우스 클릭 위치에 인포윈도우 표시
+                    infowindow.setContent(content);
+                    infowindow.setPosition(mouseEvent.latLng);
+                    infowindow.open(map);
+                });
+                
+                // B. 마우스 오버 이벤트: 색상 변경
+                kakao.maps.event.addListener(polygon, 'mouseover', function() {
+                    polygon.setOptions({
+                        fillColor: '#FF5555', // 빨간색 계열로 변경
+                        fillOpacity: 0.6
+                    });
+                });
+                
+                // C. 마우스 아웃 이벤트: 원래 색상으로 복귀
+                kakao.maps.event.addListener(polygon, 'mouseout', function() {
+                    polygon.setOptions({
+                        fillColor: '#6B8EE6', // 원래 색상으로 복귀
+                        fillOpacity: 0.4
+                    });
+                    // 마우스가 영역을 벗어날 때 인포윈도우 닫기
+                    infowindow.close();
+                });
+            });
+        }
+    </script>
 </body>
 </html>
