@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>div를 활용한 웹 구조 예시 (합본)</title>
+    
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        :root {
+            --margin: 0 3%;
+            --margin-v: 3%;
+            --search-bar: 5%;
+            --tap-bar: 4%;
+            --section-margin: 2%;
+        }
+        html, body {
+            margin: 0; 
+            padding: 0; 
+            height: 100vh; /* 뷰포트 높이 100% */
+            width: 100vw;
+        }
+        
+        body {
+            background-color: wheat;
+            display: flex;
+            flex-direction: column;
+            /* 👈 body를 Flex 컨테이너로 설정하고 세로로 배치 *//
+        }
+
+        .toolbar {
+            background-color: skyblue;
+        }
+
+        .search-bar {
+            box-sizing: border-box;
+            background-color: beige;
+            display: flex;
+            align-items: center;
+            height: var(--search-bar);
+            margin: var(--margin); 
+            margin-top: var(--margin-v);
+        }
+
+        .tap-bar {
+            background-color: beige;
+            display: flex;
+            align-items: center;
+            height: var(--tap-bar);
+            margin: var(--margin); 
+            margin-top: var(--section-margin);
+        }
+
+        .section {
+            display: flex;
+            align-items: center;
+            background-color: beige;
+            margin: var(--margin); 
+            margin-top: var(--section-margin);
+            margin-bottom: var(--margin-v);
+            flex-grow: 1;
+        }
+
+    </style>
+</head>
+<body>
+            <div class="search-bar">
+                <p>검색바 & 되돌아가기</p>
+            </div>
+            <div class="tap-bar">
+                <p>카테고리 바 & 탭 메뉴</p>
+            </div>
+        
+            <div class="section">
+                <p>메인바</p>
+            </div>
+</body>
+</html>
